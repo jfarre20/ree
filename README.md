@@ -1,4 +1,4 @@
-# ree — SRT Compositor Dashboard
+ lk# ree — SRT Compositor Dashboard
 
 Self-hosted web dashboard that manages `srt_compositor` processes and pushes them to Twitch RTMP.
 
@@ -326,7 +326,70 @@ sudo systemctl reload haproxy
 
 > Renewing certs: add a deploy hook to regenerate the combined PEM and reload haproxy.
 
-### 5. Cloudflare (recommended for production)
+### 5. Reverse proxy with lighttpd (alternative)
+
+lighttpd is lightweight and well-suited for low-resource machines like a Raspberry Pi.
+
+```bash
+sudo apt install lighttpd
+```
+
+Enable the required modules:
+
+```bash
+sudo lighttpd-enable-mod proxy
+sudo lighttpd-enable-mod setenv
+```
+
+Create `/etc/lighttpd/conf-enabled/90-ree.conf`:
+
+```lighttpd
+$HTTP["host"] == "your-domain.com" {
+    $SERVER["socket"] == ":443" {
+        ssl.engine  = "enable"
+        ssl.pemfile = "/etc/letsencrypt/live/your-domain.com/combined.pem"
+        ssl.ca-file = "/etc/letsencrypt/live/your-domain.com/chain.pem"
+    }
+
+    proxy.server = ( "" => (
+        ( "host" => "127.0.0.1", "port" => 3000 )
+    ))
+
+    proxy.header = (
+        "map-urlpath"    => ( "/" => "/" ),
+        "https-remap"   => "enable",
+        "upgrade"        => "enable"
+    )
+
+    setenv.add-request-header = (
+        "X-Forwarded-Proto" => "https",
+        "X-Real-IP"         => "%{REMOTE_ADDR}e"
+    )
+}
+
+# HTTP → HTTPS redirect
+$HTTP["scheme"] == "http" {
+    $HTTP["host"] == "your-domain.com" {
+        url.redirect = ( "" => "https://your-domain.com${url.path}${qsa}" )
+    }
+}
+```
+
+> **Combined PEM for lighttpd:** lighttpd expects the cert + key in a single file:
+> ```bash
+> sudo cat /etc/letsencrypt/live/your-domain.com/fullchain.pem \
+>          /etc/letsencrypt/live/your-domain.com/privkey.pem \
+>          > /etc/letsencrypt/live/your-domain.com/combined.pem
+> ```
+
+> **WebSocket support:** The `"upgrade" => "enable"` line in `proxy.header` requires lighttpd **1.4.46+**. Check with `lighttpd -v`. Debian Bookworm ships 1.4.69+, so this should work out of the box.
+
+```bash
+sudo lighttpd -t -f /etc/lighttpd/lighttpd.conf   # test config
+sudo systemctl restart lighttpd
+```
+
+### 6. Cloudflare (optional, recommended for production)
 
 Cloudflare sits in front of your reverse proxy and gives you DDoS protection, free TLS, and a CDN — but requires a couple of settings to work correctly with ree.
 
@@ -411,7 +474,7 @@ sudo ufw deny 443/tcp   # block everything else
 
 > Keep the current Cloudflare IP list at [cloudflare.com/ips](https://www.cloudflare.com/ips/).
 
-### 6. Open firewall ports
+### 7. Open firewall ports
 
 ```bash
 # Web traffic

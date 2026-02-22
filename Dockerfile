@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1
+ns  # syntax=docker/dockerfile:1
 
 # ──────────────────────────────────────────
 # Stage 1: Build the C compositor binary
@@ -6,7 +6,7 @@
 FROM debian:bookworm-slim AS builder-c
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc make pkg-config \
+    gcc make pkg-config libc6-dev \
     libavformat-dev libavcodec-dev libavutil-dev \
     libswscale-dev libswresample-dev \
  && rm -rf /var/lib/apt/lists/*
