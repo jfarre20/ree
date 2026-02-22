@@ -14,8 +14,10 @@ interface SrtInfoProps {
 export function SrtInfo({ port, latency = 150, passphrase }: SrtInfoProps) {
   const [copied, setCopied] = useState(false);
 
-  // Clients connect to this server's IP on the given port
-  const hostname = typeof window !== "undefined" ? window.location.hostname : "your-server-ip";
+  // Use SRT_HOSTNAME env var if set (e.g. for Cloudflare where SRT needs a DNS-only domain),
+  // otherwise fall back to the current page hostname
+  const hostname = process.env.NEXT_PUBLIC_SRT_HOSTNAME
+    || (typeof window !== "undefined" ? window.location.hostname : "your-server-ip");
   const url = srtUrl(hostname, port, latency, passphrase ?? undefined);
 
   const copy = async () => {
