@@ -1,9 +1,10 @@
 import { type NextAuthOptions } from "next-auth";
 import TwitchProvider from "next-auth/providers/twitch";
 import { db } from "@/lib/db";
-import { users, sessions, streams } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { users, sessions, streams, uploads } from "@/lib/db/schema";
+import { eq, isNull, and } from "drizzle-orm";
 import crypto from "crypto";
+import { generateUserBackground } from "@/lib/generate-background";
 
 async function fetchTwitchStreamKey(accessToken: string, broadcasterId: string): Promise<string | null> {
   try {
@@ -93,6 +94,37 @@ export const authOptions: NextAuthOptions = {
           await db.update(users).set({ twitchStreamKey: streamKey }).where(eq(users.id, twitchId));
           await db.update(streams).set({ twitchStreamKey: streamKey }).where(eq(streams.userId, twitchId));
         }
+      }
+
+      // Generate personalised background (pfp + username + animated reconnecting dots)
+      try {
+        const uploadsDir = process.env.UPLOADS_DIR ?? "/home/compositor/uploads";
+        const result = await generateUserBackground({
+          username: twitchProfile.preferred_username ?? twitchId,
+          pfpUrl: twitchProfile.picture ?? null,
+          uploadsDir,
+        });
+
+        const uploadId = crypto.randomUUID();
+        await db.insert(uploads).values({
+          id: uploadId,
+          userId: twitchId,
+          filename: result.filename,
+          originalName: "Auto-generated background",
+          size: result.size,
+          mimeType: "video/mp4",
+        });
+
+        await db.update(users)
+          .set({ defaultBackgroundId: uploadId })
+          .where(eq(users.id, twitchId));
+
+        // Apply to streams that have no background selected yet
+        await db.update(streams)
+          .set({ backgroundFileId: uploadId })
+          .where(and(eq(streams.userId, twitchId), isNull(streams.backgroundFileId)));
+      } catch (err) {
+        console.error("[ree] Background generation failed (non-fatal):", err);
       }
 
       user.id = twitchId;

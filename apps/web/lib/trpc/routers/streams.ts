@@ -4,7 +4,10 @@ import { db } from "@/lib/db";
 import { streams, uploads, users } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { streamManager } from "@/lib/stream-manager";
+import { ensureBlackFallback } from "@/lib/generate-background";
 import crypto from "crypto";
+import path from "path";
+import { existsSync } from "fs";
 
 const streamUpdateSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -68,6 +71,7 @@ export const streamsRouter = router({
       srtPort: port,
       name: "My Stream",
       twitchStreamKey: user?.twitchStreamKey ?? null,
+      backgroundFileId: user?.defaultBackgroundId ?? null,
     });
 
     return { id };
@@ -122,25 +126,32 @@ export const streamsRouter = router({
       if (!row) throw new Error("Stream not found");
       if (!row.twitchStreamKey) throw new Error("No Twitch stream key configured");
 
-      // Resolve background file path
-      let bgFile = process.env.COMPOSITOR_BINARY
-        ? require("path").join(
-            require("path").dirname(process.env.COMPOSITOR_BINARY),
-            "background.mp4"
-          )
-        : "/home/compositor/compositor/background.mp4";
+      // Resolve background file with fallback chain:
+      //   1. Stream's selected upload (if file exists on disk)
+      //   2. User's auto-generated default background
+      //   3. compositor/black.mp4  (generated on-demand if missing)
+      const uploadsDir = process.env.UPLOADS_DIR ?? "/home/compositor/uploads";
+      const compositorDir = process.env.COMPOSITOR_BINARY
+        ? path.dirname(process.env.COMPOSITOR_BINARY)
+        : "/home/compositor/compositor";
+      const blackMp4 = path.join(compositorDir, "black.mp4");
 
-      if (row.backgroundFileId) {
-        const upload = await db
-          .select()
-          .from(uploads)
-          .where(eq(uploads.id, row.backgroundFileId))
-          .get();
-        if (upload) {
-          const uploadsDir =
-            process.env.UPLOADS_DIR ?? "/home/compositor/uploads";
-          bgFile = require("path").join(uploadsDir, upload.filename);
-        }
+      const resolveUpload = async (uploadId: string | null): Promise<string | null> => {
+        if (!uploadId) return null;
+        const upload = await db.select().from(uploads).where(eq(uploads.id, uploadId)).get();
+        if (!upload) return null;
+        const filePath = path.join(uploadsDir, upload.filename);
+        return existsSync(filePath) ? filePath : null;
+      };
+
+      let bgFile =
+        (await resolveUpload(row.backgroundFileId)) ??
+        (await resolveUpload(row.userId ? (await db.select({ d: users.defaultBackgroundId }).from(users).where(eq(users.id, row.userId)).get())?.d ?? null : null)) ??
+        blackMp4;
+
+      // Ensure the final fallback exists
+      if (bgFile === blackMp4) {
+        await ensureBlackFallback(compositorDir);
       }
 
       await streamManager.start(input.id, {
