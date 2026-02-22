@@ -9,7 +9,7 @@ import crypto from "crypto";
 
 const uploadsDir =
   process.env.UPLOADS_DIR ?? "/home/compositor/uploads";
-const MAX_SIZE = 500 * 1024 * 1024; // 500 MB
+const MAX_SIZE = 30 * 1024 * 1024; // 30 MB
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);

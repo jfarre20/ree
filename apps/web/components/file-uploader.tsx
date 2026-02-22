@@ -99,7 +99,7 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
           <Upload className="h-10 w-10 text-muted-foreground" />
           <div>
             <p className="text-sm font-medium">Drop an MP4 here, or click to browse</p>
-            <p className="text-xs text-muted-foreground mt-1">MP4, MOV, MKV · Max 500 MB</p>
+            <p className="text-xs text-muted-foreground mt-1">MP4, MOV, MKV · Max 30 MB</p>
           </div>
         </>
       )}

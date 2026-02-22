@@ -35,7 +35,7 @@ export default function FilesPage() {
         <Card>
           <CardHeader>
             <CardTitle>Upload Video</CardTitle>
-            <CardDescription>MP4, MOV, or MKV · Max 500 MB per file</CardDescription>
+            <CardDescription>MP4, MOV, or MKV · Max 30 MB per file</CardDescription>
           </CardHeader>
           <CardContent>
             <FileUploader
