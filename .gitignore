@@ -17,6 +17,14 @@ data/
 # Compositor build artifacts
 compositor/srt_compositor
 compositor/srt_compositor.o
+*.o
+
+# Root-level duplicates (canonical source is compositor/)
+/srt_compositor
+/srt_compositor.c
+/srt_compositor.o
+/stream.sh
+/Makefile
 works/
 
 # Uploads — user data (root uploads dir only, not app/api/uploads route)
