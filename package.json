@@ -1,0 +1,12 @@
+{
+  "name": "reestreamer",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter web dev",
+    "build": "pnpm --filter web build",
+    "start": "pnpm --filter web start",
+    "db:generate": "pnpm --filter web db:generate",
+    "db:migrate": "pnpm --filter web db:migrate"
+  },
+  "packageManager": "pnpm@10.30.1"
+}

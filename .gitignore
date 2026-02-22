@@ -1,0 +1,31 @@
+# Node
+node_modules/
+.pnpm-store/
+
+# Next.js
+apps/web/.next/
+apps/web/out/
+
+# Environment — never commit secrets
+apps/web/.env.local
+.env.local
+.env
+
+# Database — runtime data, not source
+data/
+
+# Compositor build artifacts
+compositor/srt_compositor
+compositor/srt_compositor.o
+works/
+
+# Uploads — user data
+uploads/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+*.swp
