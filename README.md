@@ -91,7 +91,6 @@ SRT ports must be reachable from your encoder. Open them in your firewall/router
 |-----------|----------------|---------|
 | `./data/` | `/app/data` | SQLite database |
 | `./uploads/` | `/app/uploads` | Uploaded background videos |
-| `./compositor/background.mp4` | `/app/compositor/background.mp4` | Default background (read-only) |
 
 ---
 

@@ -29,3 +29,6 @@ Thumbs.db
 # Editor
 .vscode/
 *.swp
+
+# Background video (user-supplied, not tracked)
+background.mp4

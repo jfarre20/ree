@@ -71,9 +71,6 @@ COPY --from=builder-node /app/apps/web/.next/standalone/ ./
 COPY --from=builder-node /app/apps/web/.next/static/ ./apps/web/.next/static/
 COPY --from=builder-node /app/apps/web/public/ ./apps/web/public/
 
-# Default background video (can be overridden via bind mount)
-COPY background.mp4 /app/compositor/background.mp4
-
 # Runtime data directories (mounted as volumes in production)
 RUN mkdir -p /app/data /app/uploads
 

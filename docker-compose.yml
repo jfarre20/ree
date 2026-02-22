@@ -8,5 +8,4 @@ services:
     volumes:
       - ./data:/app/data
       - ./uploads:/app/uploads
-      - ./compositor/background.mp4:/app/compositor/background.mp4:ro
     env_file: .env
