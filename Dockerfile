@@ -38,6 +38,9 @@ RUN pnpm install --frozen-lockfile
 # Copy remaining source
 COPY apps/web/ ./apps/web/
 
+# Ensure public dir exists (COPY --from fails if source is missing)
+RUN mkdir -p /app/apps/web/public
+
 # Build Next.js standalone output
 RUN pnpm --filter web build
 
