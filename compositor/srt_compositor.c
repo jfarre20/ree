@@ -11,45 +11,10 @@
  * v2: Runtime config via --config <json_file>. JSON status on stderr.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <signal.h>
-#include <unistd.h>
-#include <time.h>
-#include <pthread.h>
+#include "srt_compositor.h"
 
-#include <libavformat/avformat.h>
-#include <libavcodec/avcodec.h>
-#include <libavutil/avutil.h>
-#include <libavutil/imgutils.h>
-#include <libavutil/opt.h>
-#include <libavutil/time.h>
-#include <libavutil/audio_fifo.h>
-#include <libswscale/swscale.h>
-#include <libswresample/swresample.h>
-
-/* ================================================================== */
-/*  Runtime config (replaces compile-time #defines)                   */
-/* ================================================================== */
-typedef struct {
-    char   srt_url[2048];
-    char   bg_file[2048];
-    char   stream_id[256];
-    int    out_width;
-    int    out_height;
-    int    out_fps;
-    int    video_bitrate;
-    int    audio_bitrate;
-    int    sample_rate;
-    double bg_unmute_delay;  /* seconds */
-    int    out_channels;
-    int64_t srt_timeout_us;
-    int64_t srt_retry_us;
-} Config;
-
-static Config g_cfg;
-static volatile int g_running = 1;
+Config g_cfg;
+volatile int g_running = 1;
 
 /* ================================================================== */
 /*  Minimal JSON config reader                                         */
@@ -151,61 +116,6 @@ static void jlog(const char *event, const char *extra) {
 }
 
 static void signal_handler(int sig) { (void)sig; g_running = 0; }
-
-/* ------------------------------------------------------------------ */
-/*  Source context (decoder)                                           */
-/* ------------------------------------------------------------------ */
-typedef struct {
-    AVFormatContext *fmt_ctx;
-    AVCodecContext  *video_dec_ctx;
-    AVCodecContext  *audio_dec_ctx;
-    int              video_stream_idx;
-    int              audio_stream_idx;
-    struct SwsContext *sws_ctx;
-    SwrContext       *swr_ctx;
-} SourceCtx;
-
-/* ------------------------------------------------------------------ */
-/*  Output encoder                                                     */
-/* ------------------------------------------------------------------ */
-typedef struct {
-    AVFormatContext *fmt_ctx;
-    AVCodecContext  *video_enc_ctx;
-    AVCodecContext  *audio_enc_ctx;
-    AVStream        *video_stream;
-    AVStream        *audio_stream;
-    int64_t          video_pts;
-    int64_t          audio_pts;
-} OutputCtx;
-
-/* ------------------------------------------------------------------ */
-/*  Shared SRT frame buffer (written by SRT thread, read by main)      */
-/* ------------------------------------------------------------------ */
-typedef struct {
-    pthread_mutex_t  lock;
-    uint8_t         *video_data[4];
-    int              video_linesize[4];
-    int              has_video;
-    AVAudioFifo     *audio_fifo;
-    int64_t          last_frame_time;
-    int              connected;
-} SrtShared;
-
-/* ------------------------------------------------------------------ */
-/*  Application state                                                  */
-/* ------------------------------------------------------------------ */
-typedef struct {
-    SourceCtx   bg;
-    OutputCtx   out;
-
-    SrtShared   shared;
-    pthread_t   srt_thread;
-
-    AVFrame    *bg_frame;
-    AVFrame    *out_frame;
-    AVAudioFifo *bg_audio_fifo;
-    AVAudioFifo *srt_local_fifo;
-} AppState;
 
 /* ================================================================== */
 /*  close / open helpers                                               */
@@ -609,7 +519,6 @@ static void encode_one_audio_frame(AppState *app, AVAudioFifo *fifo, int aframe_
 /* ================================================================== */
 /*  Main encode loop                                                   */
 /* ================================================================== */
-enum AudioMode { AUDIO_SRT, AUDIO_GRACE, AUDIO_BG };
 
 static void main_loop(AppState *app) {
     SrtShared *sh = &app->shared;
