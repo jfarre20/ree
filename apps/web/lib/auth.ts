@@ -96,7 +96,13 @@ export const authOptions: NextAuthOptions = {
         }
       }
 
-      // Generate personalised background (pfp + username + animated reconnecting dots)
+      // Generate personalised background only once (skip if already exists)
+      const currentUser = await db.select({ defaultBackgroundId: users.defaultBackgroundId }).from(users).where(eq(users.id, twitchId)).get();
+      if (currentUser?.defaultBackgroundId) {
+        user.id = twitchId;
+        return true;
+      }
+
       try {
         const uploadsDir = process.env.UPLOADS_DIR ?? "/home/compositor/uploads";
         const result = await generateUserBackground({
