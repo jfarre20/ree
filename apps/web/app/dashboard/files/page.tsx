@@ -1,6 +1,7 @@
 "use client";
 
-import { Film, Trash2, HardDrive } from "lucide-react";
+import { useState } from "react";
+import { Film, Trash2, HardDrive, Play, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FileUploader } from "@/components/file-uploader";
@@ -12,9 +13,10 @@ import { formatBytes } from "@/lib/utils";
 export default function FilesPage() {
   const { toast } = useToast();
   const { data: files, refetch } = trpc.uploads.list.useQuery();
+  const [previewId, setPreviewId] = useState<string | null>(null);
 
   const deleteMutation = trpc.uploads.delete.useMutation({
-    onSuccess: () => { toast({ title: "File deleted" }); refetch(); },
+    onSuccess: () => { toast({ title: "File deleted" }); refetch(); setPreviewId(null); },
     onError: (e) => toast({ title: "Delete failed", description: e.message, variant: "destructive" }),
   });
 
@@ -64,30 +66,56 @@ export default function FilesPage() {
             ) : (
               <div className="space-y-2">
                 {files.map((file) => (
-                  <div
-                    key={file.id}
-                    className="flex items-center gap-3 rounded-md border border-border p-3 hover:border-border/80 transition-colors"
-                  >
-                    <Film className="h-5 w-5 text-muted-foreground shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{file.originalName}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatBytes(file.size)} · {new Date(file.uploadedAt).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="shrink-0 text-muted-foreground hover:text-destructive"
-                      onClick={() => {
-                        if (confirm(`Delete "${file.originalName}"?`)) {
-                          deleteMutation.mutate({ id: file.id });
+                  <div key={file.id} className="rounded-md border border-border overflow-hidden">
+                    {/* File row */}
+                    <div className="flex items-center gap-3 p-3 hover:bg-muted/30 transition-colors">
+                      <Film className="h-5 w-5 text-muted-foreground shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{file.originalName}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatBytes(file.size)} · {new Date(file.uploadedAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="shrink-0 text-muted-foreground hover:text-primary"
+                        title={previewId === file.id ? "Close preview" : "Preview"}
+                        onClick={() => setPreviewId(previewId === file.id ? null : file.id)}
+                      >
+                        {previewId === file.id
+                          ? <X className="h-4 w-4" />
+                          : <Play className="h-4 w-4" />
                         }
-                      }}
-                      disabled={deleteMutation.isPending}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="shrink-0 text-muted-foreground hover:text-destructive"
+                        onClick={() => {
+                          if (confirm(`Delete "${file.originalName}"?`)) {
+                            deleteMutation.mutate({ id: file.id });
+                          }
+                        }}
+                        disabled={deleteMutation.isPending}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    {/* Inline video player */}
+                    {previewId === file.id && (
+                      <div className="border-t border-border bg-black">
+                        <video
+                          key={file.id}
+                          src={`/api/uploads/${file.id}`}
+                          controls
+                          autoPlay
+                          loop
+                          className="w-full max-h-72 object-contain"
+                        />
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

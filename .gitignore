@@ -19,8 +19,8 @@ compositor/srt_compositor
 compositor/srt_compositor.o
 works/
 
-# Uploads — user data
-uploads/
+# Uploads — user data (root uploads dir only, not app/api/uploads route)
+/uploads/
 
 # OS
 .DS_Store
