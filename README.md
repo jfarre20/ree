@@ -1,136 +1,177 @@
-# SRT Compositor
+# ree — SRT Compositor Dashboard
 
-A small Linux executable that receives an SRT video feed, composites it over a looping background video (`spongewalk.mp4`), and outputs an encoded stream for Twitch.
+Self-hosted web dashboard that manages `srt_compositor` processes and pushes them to Twitch RTMP.
+
+```
+OBS/vMix ──► SRT ──► srt_compositor ──► RTMP ──► Twitch
+                           │
+                    background.mp4 (loops while SRT is down)
+```
+
+Sign in with Twitch → stream key is fetched automatically → configure and go live.
+
+---
 
 ## How It Works
 
-```
-SRT Feed ──┐
-            ├──► [srt_compositor] ──► FLV (stdout) ──► ffmpeg ──► Twitch RTMP
-Background ─┘     1280x720 30fps
-(spongewalk.mp4)   H264 + AAC
-```
+Each stream gets a dedicated **SRT listener port** (UDP). Point your encoder at `srt://<host>:<port>?mode=caller`. The compositor:
 
-- **SRT connected**: Shows the SRT feed video and audio, background is hidden/muted
-- **SRT drops**: Immediately switches to background video and audio (spongewalk.mp4 loops)
-- **SRT reconnects**: Automatically detects and switches back to SRT feed
-- Reconnect attempts every 1 second when SRT is down
-- 2 second timeout to detect SRT dropout
+- Shows your SRT feed when connected
+- Switches to a looping background MP4 when the SRT feed drops
+- Switches back automatically on reconnect
+- Pushes the result to Twitch via RTMP
 
-## Output Specs
+The web dashboard lets you create/manage streams, upload background videos, configure encoding settings, and start/stop compositing — all without touching the command line.
 
-| Setting | Value |
-|---------|-------|
-| Resolution | 1280x720 (16:9) |
-| Frame Rate | 30 fps |
-| Video Codec | H.264 (x264 ultrafast/zerolatency) |
-| Video Bitrate | 4 Mbps |
-| Audio Codec | AAC |
-| Audio Bitrate | 128 kbps |
-| Audio Sample Rate | 44100 Hz |
-| B-frames | None (low latency) |
-| GOP | 2 seconds |
+---
 
 ## Prerequisites
 
-### Install FFmpeg Development Libraries
+- **Linux** (x86-64)
+- **Node.js 22+** and **pnpm**
+- **FFmpeg dev libraries** with SRT support:
 
-**Ubuntu/Debian:**
 ```bash
-sudo apt update
 sudo apt install build-essential pkg-config \
     libavformat-dev libavcodec-dev libavutil-dev \
-    libswscale-dev libswresample-dev \
-    ffmpeg
+    libswscale-dev libswresample-dev
 ```
 
-**Fedora:**
-```bash
-sudo dnf install gcc make pkg-config ffmpeg-devel ffmpeg
-```
+Verify SRT support: `ffmpeg -protocols 2>/dev/null | grep srt`
 
-**Arch Linux:**
-```bash
-sudo pacman -S base-devel ffmpeg
-```
+---
 
-> **Important**: Your FFmpeg must be built with SRT support (`--enable-libsrt`). 
-> Check with: `ffmpeg -protocols 2>/dev/null | grep srt`
+## Setup
 
-## Build
+### 1. Build the compositor binary
 
 ```bash
-make
+cd compositor
+gcc -Wall -Wextra -O2 -std=c11 -D_GNU_SOURCE \
+  $(pkg-config --cflags libavformat libavcodec libavutil libswscale libswresample) \
+  -o srt_compositor srt_compositor.c \
+  $(pkg-config --libs libavformat libavcodec libavutil libswscale libswresample) \
+  -lpthread -lm
 ```
 
-This produces the `srt_compositor` binary.
+### 2. Register a Twitch OAuth app
 
-## Usage
+Go to [dev.twitch.tv/console/apps](https://dev.twitch.tv/console/apps) → **Register Your Application**:
 
-### Quick Start with stream.sh
+| Field | Value |
+|-------|-------|
+| Name | anything |
+| OAuth Redirect URLs | `http://localhost:3000/api/auth/callback/twitch` (dev) |
+| Category | Broadcasting Suite |
+
+Copy the **Client ID** and generate a **Client Secret**.
+
+### 3. Configure environment
 
 ```bash
-# Place your background video as spongewalk.mp4 in the same directory
-chmod +x stream.sh
-
-./stream.sh 'srt://hoth.srv.cactys.io:6000?mode=caller&latency=150' 'YOUR_TWITCH_STREAM_KEY'
+cp .env.example apps/web/.env.local
 ```
 
-### Manual Pipeline
+Edit `apps/web/.env.local`:
+
+```env
+TWITCH_CLIENT_ID=<your client id>
+TWITCH_CLIENT_SECRET=<your client secret>
+NEXTAUTH_SECRET=<run: openssl rand -base64 32>
+NEXTAUTH_URL=http://localhost:3000
+
+COMPOSITOR_BINARY=/absolute/path/to/compositor/srt_compositor
+UPLOADS_DIR=/absolute/path/to/uploads
+DATA_DIR=/absolute/path/to/data
+```
+
+### 4. Install dependencies
 
 ```bash
-# Compositor outputs FLV to stdout, pipe to ffmpeg for Twitch
-./srt_compositor 'srt://hoth.srv.cactys.io:6000?mode=caller&latency=150' spongewalk.mp4 | \
-    ffmpeg -f flv -i pipe:0 -c copy -f flv 'rtmp://live.twitch.tv/app/YOUR_KEY'
+pnpm install
 ```
 
-### Custom Background Video
+> `better-sqlite3` compiles a native addon — requires `build-essential` / `python3`.
+
+---
+
+## Running
+
+### Development
 
 ```bash
-./srt_compositor 'srt://host:6000?mode=caller&latency=150' my_background.mp4 | \
-    ffmpeg -f flv -i pipe:0 -c copy -f flv 'rtmp://live.twitch.tv/app/YOUR_KEY'
+./start-dev.sh
 ```
 
-### Test Without Twitch (save to file)
+Open [http://localhost:3000](http://localhost:3000).
+
+### Production
 
 ```bash
-./srt_compositor 'srt://host:6000?mode=caller&latency=150' > output.flv
-# Then play: ffplay output.flv
+cd apps/web
+pnpm build
+pnpm start
 ```
 
-## Latency Optimizations
+---
 
-The compositor is designed for minimal latency:
+## First Sign-In
 
-- **Decoder**: `LOW_DELAY` flag, `FAST` flag, 2 threads
-- **Encoder**: x264 `ultrafast` preset, `zerolatency` tune, no B-frames
-- **SRT input**: `nobuffer` flag, small probe/analyze duration (0.5s)
-- **Output**: Direct pipe to ffmpeg with `-c copy` (no re-encode on output side)
-- **Frame pacing**: Tight 30fps loop with microsecond-precision sleep
+Sign in with Twitch OAuth. The app automatically:
 
-## Log Output
+1. Creates your user account
+2. Fetches your Twitch stream key via the API (`channel:read:stream_key` scope)
+3. Pre-populates stream key on all your streams
 
-All status messages go to stderr, so they don't interfere with the FLV pipe on stdout:
+Re-signing in refreshes the stream key if Twitch ever rotates it.
+
+---
+
+## Architecture
 
 ```
-[compositor] Opening background: spongewalk.mp4
-[bg] Opened: 1920x1080 video + audio
-[compositor] Opening output encoder...
-[out] FLV output ready: 1280x720 @30fps H264+AAC to stdout
-[compositor] Starting main loop. SRT: srt://hoth.srv.cactys.io:6000?mode=caller&latency=150
-[srt] Connecting to srt://hoth.srv.cactys.io:6000?mode=caller&latency=150 ...
-[srt] Connected: 1920x1080 video + audio
-[loop] >>> SRT ACTIVE - showing SRT, muting background
-...
-[srt] Read error, disconnecting
-[loop] >>> SRT DROPPED - showing background video+audio
-[bg] Looping...
-[srt] Connecting to srt://... 
-[srt] Connected: 1920x1080 video + audio
-[loop] >>> SRT ACTIVE - showing SRT, muting background
+apps/web/                    Next.js 14 (App Router)
+├── app/                     Pages and API routes
+├── components/              shadcn/ui components
+└── lib/
+    ├── auth.ts              next-auth v4, Twitch OAuth, JWT sessions
+    ├── db/                  Drizzle ORM + SQLite (better-sqlite3)
+    │   ├── schema.ts        users, sessions, streams, uploads
+    │   └── index.ts         DB init + inline migrations
+    ├── trpc/                tRPC v11 routers (streams, uploads)
+    └── stream-manager/      Node.js process manager for compositor
+
+compositor/
+└── srt_compositor.c         C binary — SRT → background compositor → RTMP
 ```
 
-## Signals
+### Compositor v2 flags
 
-- `Ctrl+C` / `SIGINT`: Graceful shutdown
-- `SIGPIPE`: Ignored (handles downstream pipe breaks)
+```
+srt_compositor --config <config.json>
+```
+
+Config JSON fields: `srt_url`, `bg_file`, `stream_id`, `out_width`, `out_height`, `out_fps`, `video_bitrate`, `audio_bitrate`, `sample_rate`, `bg_unmute_delay`.
+
+Events emitted on stderr as JSON: `started`, `bg_opened`, `srt_connected`, `srt_dropped`, `srt_active`, `output_ready`, `running`, `stats`, `stopped`, `done`, `error`.
+
+### SRT port pool
+
+Default: ports 6000–6099 (100 concurrent streams). Configure via `SRT_PORT_MIN` / `SRT_PORT_MAX`.
+
+### Database
+
+SQLite at `$DATA_DIR/reestreamer.db`. Schema is created/migrated automatically on startup — no migration CLI needed.
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | Next.js 14, React 18, Tailwind CSS, shadcn/ui |
+| API | tRPC v11, TanStack Query v5 |
+| Auth | next-auth v4, Twitch OAuth (JWT sessions) |
+| Database | SQLite + Drizzle ORM (better-sqlite3) |
+| Runtime | Node.js 22 |
+| Compositor | C (FFmpeg libav*, libsrt) |
