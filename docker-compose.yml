@@ -1,11 +1,19 @@
 services:
   ree:
     build: .
+    container_name: ree
     restart: unless-stopped
     ports:
-      - "3000:3000"
       - "6000-6099:6000-6099/udp"
     volumes:
       - ./data:/app/data
       - ./uploads:/app/uploads
     env_file: .env
+    networks:
+      - default
+      - reverseproxy
+
+networks:
+  reverseproxy:
+    name: haproxy_reverseproxy
+    external: true
