@@ -16,12 +16,8 @@ sqlite.pragma("foreign_keys = ON");
 
 export const db = drizzle(sqlite, { schema });
 
-// Add columns introduced after initial schema (SQLite has no IF NOT EXISTS for ALTER)
-try { sqlite.exec(`ALTER TABLE users ADD COLUMN twitch_stream_key TEXT;`); } catch (_) { /* already exists */ }
-try { sqlite.exec(`ALTER TABLE users ADD COLUMN default_background_id TEXT;`); } catch (_) { /* already exists */ }
-try { sqlite.exec(`ALTER TABLE streams ADD COLUMN reconnect_timeout INTEGER NOT NULL DEFAULT 86400;`); } catch (_) { /* already exists */ }
-
 // Run initial migrations inline (simple approach for single-server deploy)
+// NOTE: CREATE TABLE IF NOT EXISTS must include ALL current columns so fresh DBs work.
 sqlite.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
@@ -29,6 +25,8 @@ sqlite.exec(`
     display_name TEXT NOT NULL,
     profile_image TEXT,
     email TEXT,
+    twitch_stream_key TEXT,
+    default_background_id TEXT,
     created_at INTEGER NOT NULL DEFAULT (unixepoch()),
     updated_at INTEGER NOT NULL DEFAULT (unixepoch())
   );
@@ -66,6 +64,7 @@ sqlite.exec(`
     background_file_id TEXT REFERENCES uploads(id) ON DELETE SET NULL,
     bg_audio_fade_delay REAL NOT NULL DEFAULT 5.0,
     bg_audio_fade_in REAL NOT NULL DEFAULT 2.0,
+    reconnect_timeout INTEGER NOT NULL DEFAULT 86400,
     twitch_stream_key TEXT,
     twitch_ingest_server TEXT NOT NULL DEFAULT 'live.twitch.tv',
     status TEXT NOT NULL DEFAULT 'stopped',
@@ -77,5 +76,10 @@ sqlite.exec(`
     updated_at INTEGER NOT NULL DEFAULT (unixepoch())
   );
 `);
+
+// Add columns for DBs created before these columns existed (ALTER runs after CREATE)
+try { sqlite.exec(`ALTER TABLE users ADD COLUMN twitch_stream_key TEXT;`); } catch (_) { /* already exists */ }
+try { sqlite.exec(`ALTER TABLE users ADD COLUMN default_background_id TEXT;`); } catch (_) { /* already exists */ }
+try { sqlite.exec(`ALTER TABLE streams ADD COLUMN reconnect_timeout INTEGER NOT NULL DEFAULT 86400;`); } catch (_) { /* already exists */ }
 
 export type { User, Stream, Upload } from "./schema";
