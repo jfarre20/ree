@@ -115,6 +115,63 @@ pnpm start
 
 ---
 
+## Local Testing with a Public URL
+
+Twitch OAuth requires a publicly reachable callback URL — `localhost` won't work unless you expose it. Pick any of the options below.
+
+### Option A — cloudflared (easiest, no account needed)
+
+```bash
+# Install (Debian/Ubuntu)
+curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb -o cloudflared.deb
+sudo dpkg -i cloudflared.deb
+
+# Start a tunnel to port 3000
+cloudflared tunnel --url http://localhost:3000
+```
+
+Cloudflared prints a random `https://*.trycloudflare.com` URL. Use that as your base.
+
+### Option B — ngrok
+
+```bash
+# Install: https://ngrok.com/download
+ngrok http 3000
+```
+
+Ngrok prints a `https://<random>.ngrok-free.app` URL.
+
+### Option C — SSH reverse tunnel (if you have a VPS)
+
+```bash
+# On your local machine — forwards VPS port 3000 → your local 3000
+ssh -R 3000:localhost:3000 user@your-vps-ip
+```
+
+Then either access via `http://your-vps-ip:3000` or put nginx in front for HTTPS.
+
+---
+
+### After you have a public URL
+
+**1. Add the callback URL to your Twitch app** ([dev.twitch.tv/console/apps](https://dev.twitch.tv/console/apps)):
+
+```
+https://<your-tunnel-url>/api/auth/callback/twitch
+```
+
+**2. Update `apps/web/.env.local`:**
+
+```env
+NEXTAUTH_URL=https://<your-tunnel-url>
+```
+
+**3. Restart the dev server** — `./start-dev.sh`
+
+> Tip: cloudflared and ngrok give a new random URL each run. For a stable URL during development, use ngrok's paid plan, a reserved Cloudflare tunnel, or a VPS.
+
+---
+
 ## First Sign-In
 
 Sign in with Twitch OAuth. The app automatically:
