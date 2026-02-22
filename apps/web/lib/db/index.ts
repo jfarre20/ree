@@ -19,6 +19,7 @@ export const db = drizzle(sqlite, { schema });
 // Add columns introduced after initial schema (SQLite has no IF NOT EXISTS for ALTER)
 try { sqlite.exec(`ALTER TABLE users ADD COLUMN twitch_stream_key TEXT;`); } catch (_) { /* already exists */ }
 try { sqlite.exec(`ALTER TABLE users ADD COLUMN default_background_id TEXT;`); } catch (_) { /* already exists */ }
+try { sqlite.exec(`ALTER TABLE streams ADD COLUMN reconnect_timeout INTEGER NOT NULL DEFAULT 86400;`); } catch (_) { /* already exists */ }
 
 // Run initial migrations inline (simple approach for single-server deploy)
 sqlite.exec(`
