@@ -37,7 +37,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const ext = file.name.split(".").pop()?.toLowerCase() ?? "mp4";
+  // Strip anything non-alphanumeric from the extension
+  const ext = (file.name.split(".").pop() ?? "mp4").replace(/[^a-z0-9]/gi, "").toLowerCase() || "mp4";
   const filename = `${crypto.randomUUID()}.${ext}`;
 
   mkdirSync(uploadsDir, { recursive: true });

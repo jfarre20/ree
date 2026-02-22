@@ -27,7 +27,7 @@ export async function GET(
 
   const filePath = path.join(
     process.env.UPLOADS_DIR ?? "/home/compositor/uploads",
-    row.filename
+    path.basename(row.filename)   // prevent path traversal
   );
 
   let fileSize: number;
@@ -40,11 +40,25 @@ export async function GET(
   const range = req.headers.get("range");
 
   if (range) {
-    const [startStr, endStr] = range.replace(/bytes=/, "").split("-");
-    const start = parseInt(startStr, 10);
-    const end = endStr ? Math.min(parseInt(endStr, 10), fileSize - 1) : fileSize - 1;
-    const chunkSize = end - start + 1;
+    const match = /bytes=(\d+)-(\d*)/.exec(range);
+    if (!match) {
+      return new NextResponse("Invalid Range header", {
+        status: 416,
+        headers: { "Content-Range": `bytes */${fileSize}` },
+      });
+    }
 
+    const start = parseInt(match[1], 10);
+    const end = match[2] ? Math.min(parseInt(match[2], 10), fileSize - 1) : fileSize - 1;
+
+    if (start > end || start >= fileSize) {
+      return new NextResponse("Range Not Satisfiable", {
+        status: 416,
+        headers: { "Content-Range": `bytes */${fileSize}` },
+      });
+    }
+
+    const chunkSize = end - start + 1;
     const nodeStream = createReadStream(filePath, { start, end });
     const webStream = Readable.toWeb(nodeStream) as ReadableStream;
 
@@ -55,6 +69,7 @@ export async function GET(
         "Accept-Ranges": "bytes",
         "Content-Length": String(chunkSize),
         "Content-Type": row.mimeType,
+        "Content-Disposition": "inline",
         "Cache-Control": "no-store",
       },
     });
@@ -69,6 +84,7 @@ export async function GET(
       "Content-Length": String(fileSize),
       "Content-Type": row.mimeType,
       "Accept-Ranges": "bytes",
+      "Content-Disposition": "inline",
       "Cache-Control": "no-store",
     },
   });
