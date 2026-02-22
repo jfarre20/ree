@@ -1,5 +1,3 @@
-ns  # syntax=docker/dockerfile:1
-
 # ──────────────────────────────────────────
 # Stage 1: Build the C compositor binary
 # ──────────────────────────────────────────
