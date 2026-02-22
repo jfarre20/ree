@@ -25,9 +25,77 @@ The web dashboard lets you create/manage streams, upload background videos, conf
 
 ---
 
-## Prerequisites
+## Docker (recommended)
 
-- **Linux** (x86-64)
+Works on **any architecture** — arm64 (Raspberry Pi 4/5), amd64, etc. Both the C compositor and the `better-sqlite3` native addon compile from source inside the build, so the image is always native to whatever machine runs `docker build`. No `--platform` flag needed.
+
+### 1. Register a Twitch app
+
+Go to [dev.twitch.tv/console/apps](https://dev.twitch.tv/console/apps) → **Register Your Application** and add:
+
+```
+http://<your-host>:3000/api/auth/callback/twitch
+```
+
+as an OAuth Redirect URL.
+
+### 2. Configure environment
+
+```bash
+cp .env.example .env
+# fill in TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, NEXTAUTH_SECRET, NEXTAUTH_URL
+```
+
+The path variables (`COMPOSITOR_BINARY`, `UPLOADS_DIR`, `DATA_DIR`) are pre-filled with the correct container paths — leave them as-is.
+
+### 3. Build and run
+
+```bash
+docker compose build
+docker compose up -d
+docker compose logs -f
+```
+
+App is at `http://<host>:3000`. The SQLite database is created automatically on first start at `./data/reestreamer.db`.
+
+### Updating
+
+```bash
+git pull
+docker compose build
+docker compose up -d
+```
+
+### Cross-compiling for a Pi from an x86 machine
+
+```bash
+docker buildx build --platform linux/arm64 -t ree:latest --load .
+```
+
+### Ports
+
+| Port | Protocol | Purpose |
+|------|----------|---------|
+| 3000 | TCP | Web UI |
+| 6000–6099 | UDP | SRT listener pool (one per active stream) |
+
+SRT ports must be reachable from your encoder. Open them in your firewall/router.
+
+### Volumes
+
+| Host path | Container path | Purpose |
+|-----------|----------------|---------|
+| `./data/` | `/app/data` | SQLite database |
+| `./uploads/` | `/app/uploads` | Uploaded background videos |
+| `./compositor/background.mp4` | `/app/compositor/background.mp4` | Default background (read-only) |
+
+---
+
+## Bare-metal setup
+
+### Prerequisites
+
+- **Linux** (any architecture)
 - **Node.js 22+** and **pnpm**
 - **FFmpeg dev libraries** with SRT support:
 
@@ -38,10 +106,6 @@ sudo apt install build-essential pkg-config \
 ```
 
 Verify SRT support: `ffmpeg -protocols 2>/dev/null | grep srt`
-
----
-
-## Setup
 
 ### 1. Build the compositor binary
 
@@ -168,11 +232,6 @@ sudo systemctl status ree
 sudo journalctl -u ree -f
 ```
 
-> **Note:** Next.js standalone output (`server.js`) must be enabled. Add this to `apps/web/next.config.mjs`:
-> ```js
-> output: 'standalone',
-> ```
-> Then rebuild.
 
 ### 4. Reverse proxy with Caddy (recommended)
 
@@ -439,7 +498,7 @@ Re-signing in refreshes the stream key if Twitch ever rotates it.
 ## Architecture
 
 ```
-apps/web/                    Next.js 14 (App Router)
+apps/web/                    Next.js 15 (App Router)
 ├── app/                     Pages and API routes
 ├── components/              shadcn/ui components
 └── lib/
@@ -478,7 +537,7 @@ SQLite at `$DATA_DIR/reestreamer.db`. Schema is created/migrated automatically o
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Next.js 14, React 18, Tailwind CSS, shadcn/ui |
+| Frontend | Next.js 15, React 19, Tailwind CSS, shadcn/ui |
 | API | tRPC v11, TanStack Query v5 |
 | Auth | next-auth v4, Twitch OAuth (JWT sessions) |
 | Database | SQLite + Drizzle ORM (better-sqlite3) |

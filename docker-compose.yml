@@ -1,0 +1,12 @@
+services:
+  ree:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+      - "6000-6099:6000-6099/udp"
+    volumes:
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+      - ./compositor/background.mp4:/app/compositor/background.mp4:ro
+    env_file: .env

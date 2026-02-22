@@ -1,0 +1,32 @@
+# Dependencies (reinstalled inside the build)
+node_modules
+apps/web/node_modules
+
+# Build output (rebuilt inside the build)
+.next
+apps/web/.next
+
+# Runtime data (mounted as volumes)
+data/
+uploads/
+
+# Git history
+.git
+.gitignore
+
+# SQLite database files
+*.db
+*.db-shm
+*.db-wal
+
+# Pre-built compositor binary (rebuilt in container)
+compositor/srt_compositor
+
+# Local environment secrets
+apps/web/.env.local
+.env
+
+# Editor / OS noise
+.DS_Store
+*.swp
+*.swo
