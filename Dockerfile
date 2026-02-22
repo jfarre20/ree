@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
-COPY compositor/srt_compositor.c compositor/Makefile ./
+COPY compositor/srt_compositor.c compositor/srt_compositor.h compositor/Makefile ./
 RUN make
 
 # ──────────────────────────────────────────
