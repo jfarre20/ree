@@ -47,6 +47,7 @@ export default function StreamSettingsPage() {
         sampleRate: stream.sampleRate,
         backgroundFileId: stream.backgroundFileId ?? "",
         bgAudioFadeDelay: stream.bgAudioFadeDelay,
+        reconnectTimeout: stream.reconnectTimeout,
         twitchStreamKey: stream.twitchStreamKey ?? "",
         twitchIngestServer: stream.twitchIngestServer,
       });
@@ -108,6 +109,7 @@ export default function StreamSettingsPage() {
         sampleRate: form.sampleRate as number,
         backgroundFileId: (form.backgroundFileId as string) || null,
         bgAudioFadeDelay: form.bgAudioFadeDelay as number,
+        reconnectTimeout: form.reconnectTimeout as number,
         twitchStreamKey: form.twitchStreamKey as string,
         twitchIngestServer: form.twitchIngestServer as string,
       },
@@ -234,6 +236,31 @@ export default function StreamSettingsPage() {
                   />
                   <p className="text-xs text-muted-foreground">
                     150ms is good for most networks. Increase for unstable connections.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Reconnect Timeout</Label>
+                  <Select
+                    value={String(form.reconnectTimeout ?? 86400)}
+                    onValueChange={(v) => set("reconnectTimeout", Number(v))}
+                    disabled={isRunning}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="300">5 minutes</SelectItem>
+                      <SelectItem value="900">15 minutes</SelectItem>
+                      <SelectItem value="1800">30 minutes</SelectItem>
+                      <SelectItem value="3600">1 hour</SelectItem>
+                      <SelectItem value="7200">2 hours</SelectItem>
+                      <SelectItem value="21600">6 hours</SelectItem>
+                      <SelectItem value="43200">12 hours</SelectItem>
+                      <SelectItem value="86400">24 hours</SelectItem>
+                      <SelectItem value="0">Never (stay live forever)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    If your SRT encoder disconnects, the stream will auto-stop after this timeout unless you reconnect.
                   </p>
                 </div>
               </CardContent>

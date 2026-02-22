@@ -86,6 +86,9 @@ export const streams = sqliteTable("streams", {
   bgAudioFadeDelay: real("bg_audio_fade_delay").notNull().default(5.0), // seconds
   bgAudioFadeIn: real("bg_audio_fade_in").notNull().default(2.0),
 
+  // Auto-stop after SRT disconnect (seconds, 0 = never)
+  reconnectTimeout: integer("reconnect_timeout").notNull().default(86400), // 24 hours
+
   // Twitch output (stream key encrypted with NEXTAUTH_SECRET via AES)
   twitchStreamKey: text("twitch_stream_key"), // stored encrypted
   twitchIngestServer: text("twitch_ingest_server")

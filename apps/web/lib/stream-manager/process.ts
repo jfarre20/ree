@@ -16,6 +16,7 @@ export interface StreamConfig {
   audioBitrate: number;
   sampleRate: number;
   bgAudioFadeDelay: number;
+  reconnectTimeout: number; // seconds, 0 = never auto-stop
   twitchStreamKey: string;
   twitchIngestServer: string;
 }
@@ -45,6 +46,8 @@ export class StreamProcess {
   private _status: StreamStatus;
   private configPath: string;
   private onStatusChange: (status: StreamStatus) => void;
+  private reconnectTimeout = 0;
+  private disconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     streamId: string,
@@ -108,6 +111,8 @@ export class StreamProcess {
     // Pipe compositor stdout → ffmpeg stdin
     this.compositor.stdout!.pipe(this.ffmpeg.stdin!);
 
+    this.reconnectTimeout = config.reconnectTimeout;
+
     this._status = {
       running: true,
       srtConnected: false,
@@ -161,9 +166,24 @@ export class StreamProcess {
     switch (event.event) {
       case "srt_connected":
         this._status.srtConnected = true;
+        // Clear any pending disconnect timer
+        if (this.disconnectTimer) {
+          clearTimeout(this.disconnectTimer);
+          this.disconnectTimer = null;
+          this.appendLog(`[timeout] Reconnected — auto-stop timer cancelled`);
+        }
         break;
       case "srt_dropped":
         this._status.srtConnected = false;
+        // Start disconnect timer if configured
+        if (this.reconnectTimeout > 0 && !this.disconnectTimer) {
+          const mins = Math.round(this.reconnectTimeout / 60);
+          this.appendLog(`[timeout] SRT disconnected — will auto-stop in ${mins > 0 ? mins + "m" : this.reconnectTimeout + "s"} if not reconnected`);
+          this.disconnectTimer = setTimeout(() => {
+            this.appendLog(`[timeout] Reconnect timeout reached (${mins > 0 ? mins + "m" : this.reconnectTimeout + "s"}) — stopping stream`);
+            this.stop();
+          }, this.reconnectTimeout * 1000);
+        }
         break;
       case "stopped":
         this._status.running = false;
@@ -183,6 +203,10 @@ export class StreamProcess {
   }
 
   private cleanup() {
+    if (this.disconnectTimer) {
+      clearTimeout(this.disconnectTimer);
+      this.disconnectTimer = null;
+    }
     this.compositor = null;
     this.ffmpeg = null;
     this._status.running = false;

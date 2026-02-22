@@ -21,6 +21,7 @@ const streamUpdateSchema = z.object({
   backgroundFileId: z.string().nullable().optional(),
   bgAudioFadeDelay: z.number().min(0).max(30).optional(),
   bgAudioFadeIn: z.number().min(0).max(10).optional(),
+  reconnectTimeout: z.number().min(0).max(86400).optional(),
   twitchStreamKey: z.string().max(200).optional(),
   twitchIngestServer: z.string().optional(),
 });
@@ -173,6 +174,7 @@ export const streamsRouter = router({
         audioBitrate: row.audioBitrate,
         sampleRate: row.sampleRate,
         bgAudioFadeDelay: row.bgAudioFadeDelay,
+        reconnectTimeout: row.reconnectTimeout,
         twitchStreamKey: row.twitchStreamKey,
         twitchIngestServer: row.twitchIngestServer,
       });
