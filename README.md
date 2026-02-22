@@ -267,14 +267,99 @@ sudo systemctl reload haproxy
 
 > Renewing certs: add a deploy hook to regenerate the combined PEM and reload haproxy.
 
-### 5. Open firewall ports
+### 5. Cloudflare (recommended for production)
+
+Cloudflare sits in front of your reverse proxy and gives you DDoS protection, free TLS, and a CDN — but requires a couple of settings to work correctly with ree.
+
+#### DNS
+
+| Name | Type | Content | Proxy |
+|------|------|---------|-------|
+| `ree.domain.com` | A | your server IP | **Proxied** (orange cloud) |
+| `srt.domain.com` | A | your server IP | **DNS only** (grey cloud) |
+
+**SRT must bypass Cloudflare.** Cloudflare's proxy is HTTP-only; it cannot forward UDP. Point your encoders at `srt.domain.com` (or the raw IP) instead of `ree.domain.com`.
+
+#### SSL/TLS settings (Cloudflare dashboard → SSL/TLS)
+
+| Setting | Value |
+|---------|-------|
+| Mode | **Full (strict)** |
+| Always Use HTTPS | On |
+| Minimum TLS Version | TLS 1.2 |
+
+**Full (strict)** means Cloudflare validates your origin cert. Use either a free [Cloudflare Origin CA certificate](https://developers.cloudflare.com/ssl/origin-configuration/origin-ca/) (15-year validity, no renewal needed) or a Let's Encrypt cert on the origin.
+
+#### Cloudflare Origin CA cert (easiest with Full strict)
+
+In Cloudflare dashboard → SSL/TLS → Origin Server → **Create Certificate**. Download the cert and key, then:
+
+**Caddy** — Caddy handles this automatically when proxied through Cloudflare with Full (strict); no changes needed if you already have a real cert.
+
+**nginx:**
+```nginx
+ssl_certificate     /etc/ssl/cloudflare-origin.pem;
+ssl_certificate_key /etc/ssl/cloudflare-origin.key;
+```
+
+**HAProxy** — combine into a single PEM:
+```bash
+cat cloudflare-origin.pem cloudflare-origin.key > /etc/haproxy/certs/ree.pem
+sudo systemctl reload haproxy
+```
+
+#### Network settings (Cloudflare dashboard → Network)
+
+| Setting | Value |
+|---------|-------|
+| WebSockets | **On** |
+| gRPC | Off (not used) |
+
+WebSockets must be on for tRPC subscriptions and hot-reload in dev.
+
+#### Caching (Cloudflare dashboard → Caching)
+
+| Setting | Value |
+|---------|-------|
+| Cache Level | Standard |
+| Browser Cache TTL | Respect Existing Headers |
+
+Next.js sets its own `Cache-Control` headers; Cloudflare will honour them. No page rules needed.
+
+#### Lock origin to Cloudflare IPs only (optional but recommended)
+
+Prevents anyone from hitting your server directly, bypassing Cloudflare.
 
 ```bash
-# Web traffic (if using ufw)
+# Allow only Cloudflare IP ranges + your own access
+sudo ufw allow from 173.245.48.0/20 to any port 443 proto tcp
+sudo ufw allow from 103.21.244.0/22 to any port 443 proto tcp
+sudo ufw allow from 103.22.200.0/22 to any port 443 proto tcp
+sudo ufw allow from 103.31.4.0/22 to any port 443 proto tcp
+sudo ufw allow from 141.101.64.0/18 to any port 443 proto tcp
+sudo ufw allow from 108.162.192.0/18 to any port 443 proto tcp
+sudo ufw allow from 190.93.240.0/20 to any port 443 proto tcp
+sudo ufw allow from 188.114.96.0/20 to any port 443 proto tcp
+sudo ufw allow from 197.234.240.0/22 to any port 443 proto tcp
+sudo ufw allow from 198.41.128.0/17 to any port 443 proto tcp
+sudo ufw allow from 162.158.0.0/15 to any port 443 proto tcp
+sudo ufw allow from 104.16.0.0/13 to any port 443 proto tcp
+sudo ufw allow from 104.24.0.0/14 to any port 443 proto tcp
+sudo ufw allow from 172.64.0.0/13 to any port 443 proto tcp
+sudo ufw allow from 131.0.72.0/22 to any port 443 proto tcp
+sudo ufw deny 443/tcp   # block everything else
+```
+
+> Keep the current Cloudflare IP list at [cloudflare.com/ips](https://www.cloudflare.com/ips/).
+
+### 6. Open firewall ports
+
+```bash
+# Web traffic
 sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
 
-# SRT listener ports (UDP) — must be reachable from your encoder
+# SRT listener ports (UDP) — must be reachable from your encoder directly (not via Cloudflare)
 sudo ufw allow 6000:6099/udp
 ```
 
