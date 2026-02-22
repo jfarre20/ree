@@ -1,6 +1,9 @@
 services:
   ree:
-    build: .
+    build:
+      context: .
+      args:
+        - NEXT_PUBLIC_SRT_HOSTNAME=${NEXT_PUBLIC_SRT_HOSTNAME:-}
     container_name: ree
     restart: unless-stopped
     ports:

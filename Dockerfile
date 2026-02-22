@@ -41,6 +41,10 @@ COPY apps/web/ ./apps/web/
 # Ensure public dir exists (COPY --from fails if source is missing)
 RUN mkdir -p /app/apps/web/public
 
+# NEXT_PUBLIC_ vars are baked in at build time by Next.js
+ARG NEXT_PUBLIC_SRT_HOSTNAME
+ENV NEXT_PUBLIC_SRT_HOSTNAME=$NEXT_PUBLIC_SRT_HOSTNAME
+
 # Build Next.js standalone output
 RUN pnpm --filter web build
 
