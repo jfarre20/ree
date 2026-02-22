@@ -10,8 +10,9 @@ import path from "path";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return new NextResponse("Unauthorized", { status: 401 });
@@ -20,7 +21,7 @@ export async function GET(
   const row = await db
     .select()
     .from(uploads)
-    .where(and(eq(uploads.id, params.id), eq(uploads.userId, session.user.id)))
+    .where(and(eq(uploads.id, id), eq(uploads.userId, session.user.id)))
     .get();
 
   if (!row) return new NextResponse("Not found", { status: 404 });
