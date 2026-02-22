@@ -12,24 +12,39 @@ import { eq } from "drizzle-orm";
 
 class StreamManager {
   private processes = new Map<string, StreamProcess>();
-  private portPool: Set<number>;
+  private portMin: number;
+  private portMax: number;
+  private initialized = false;
+  private usedPorts = new Set<number>();
 
   constructor() {
-    const min = parseInt(process.env.SRT_PORT_MIN ?? "6000", 10);
-    const max = parseInt(process.env.SRT_PORT_MAX ?? "6099", 10);
-    this.portPool = new Set(Array.from({ length: max - min + 1 }, (_, i) => min + i));
+    this.portMin = parseInt(process.env.SRT_PORT_MIN ?? "6000", 10);
+    this.portMax = parseInt(process.env.SRT_PORT_MAX ?? "6099", 10);
   }
 
-  allocatePort(): number | null {
-    const iter = this.portPool.values().next();
-    if (iter.done) return null;
-    const port = iter.value;
-    this.portPool.delete(port);
-    return port;
+  /** Load already-assigned ports from the database on first use */
+  private async ensureInitialized() {
+    if (this.initialized) return;
+    this.initialized = true;
+    const existingStreams = await db.select({ port: streams.srtPort }).from(streams);
+    for (const row of existingStreams) {
+      this.usedPorts.add(row.port);
+    }
+  }
+
+  async allocatePort(): Promise<number | null> {
+    await this.ensureInitialized();
+    for (let port = this.portMin; port <= this.portMax; port++) {
+      if (!this.usedPorts.has(port)) {
+        this.usedPorts.add(port);
+        return port;
+      }
+    }
+    return null;
   }
 
   releasePort(port: number) {
-    this.portPool.add(port);
+    this.usedPorts.delete(port);
   }
 
   async start(streamId: string, config: StreamConfig): Promise<void> {

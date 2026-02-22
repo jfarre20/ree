@@ -12,7 +12,6 @@ import { existsSync } from "fs";
 const streamUpdateSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   srtLatency: z.number().min(20).max(8000).optional(),
-  srtPassphrase: z.string().max(79).optional().nullable(),
   outWidth: z.number().min(320).max(1920).optional(),
   outHeight: z.number().min(240).max(1080).optional(),
   outFps: z.number().min(15).max(60).optional(),
@@ -57,18 +56,25 @@ export const streamsRouter = router({
     }),
 
   create: protectedProcedure.mutation(async ({ ctx }) => {
-    const port = streamManager.allocatePort();
+    const port = await streamManager.allocatePort();
     if (port === null) {
-      throw new Error("No SRT ports available. Too many concurrent streams.");
+      throw new Error(
+        "This server is full — all SRT ports are in use. " +
+        "Delete unused streams to free up ports, or contact the server admin to expand the port pool."
+      );
     }
 
     const user = await db.select().from(users).where(eq(users.id, ctx.userId)).get();
+
+    // Auto-generate a 16-char alphanumeric passphrase for SRT encryption
+    const passphrase = crypto.randomBytes(12).toString("base64url").slice(0, 16);
 
     const id = crypto.randomUUID();
     await db.insert(streams).values({
       id,
       userId: ctx.userId,
       srtPort: port,
+      srtPassphrase: passphrase,
       name: "My Stream",
       twitchStreamKey: user?.twitchStreamKey ?? null,
       backgroundFileId: user?.defaultBackgroundId ?? null,
@@ -185,6 +191,28 @@ export const streamsRouter = router({
       if (!row) throw new Error("Stream not found");
       streamManager.stop(input.id);
       return { ok: true };
+    }),
+
+  regenerateStreamKey: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const row = await db
+        .select()
+        .from(streams)
+        .where(and(eq(streams.id, input.id), eq(streams.userId, ctx.userId)))
+        .get();
+      if (!row) throw new Error("Stream not found");
+      if (row.status === "running") {
+        throw new Error("Stop the stream before regenerating the stream key");
+      }
+
+      const passphrase = crypto.randomBytes(12).toString("base64url").slice(0, 16);
+      await db
+        .update(streams)
+        .set({ srtPassphrase: passphrase, updatedAt: new Date() })
+        .where(eq(streams.id, input.id));
+
+      return { ok: true, passphrase };
     }),
 
   getLogs: protectedProcedure

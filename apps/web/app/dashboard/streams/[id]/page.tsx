@@ -1,4 +1,4 @@
-"use client";
+ "use client";
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -39,7 +39,6 @@ export default function StreamSettingsPage() {
       setForm({
         name: stream.name,
         srtLatency: stream.srtLatency,
-        srtPassphrase: stream.srtPassphrase ?? "",
         outWidth: stream.outWidth,
         outHeight: stream.outHeight,
         outFps: stream.outFps,
@@ -87,13 +86,20 @@ export default function StreamSettingsPage() {
     onSuccess: () => refetch(),
   });
 
+  const regenKeyMutation = trpc.streams.regenerateStreamKey.useMutation({
+    onSuccess: () => {
+      toast({ title: "Stream key regenerated" });
+      refetch();
+    },
+    onError: (e) => toast({ title: "Failed to regenerate", description: e.message, variant: "destructive" }),
+  });
+
   const handleSave = () => {
     updateMutation.mutate({
       id,
       data: {
         name: form.name as string,
         srtLatency: form.srtLatency as number,
-        srtPassphrase: (form.srtPassphrase as string) || null,
         outWidth: form.outWidth as number,
         outHeight: form.outHeight as number,
         outFps: form.outFps as number,
@@ -175,7 +181,10 @@ export default function StreamSettingsPage() {
         <SrtInfo
           port={stream.srtPort}
           latency={form.srtLatency as number ?? stream.srtLatency}
-          passphrase={(form.srtPassphrase as string) || undefined}
+          passphrase={stream.srtPassphrase}
+          streamId={id}
+          isStopped={!isRunning}
+          onRegenerate={() => regenKeyMutation.mutate({ id })}
         />
 
         {/* Settings Tabs */}
@@ -226,17 +235,6 @@ export default function StreamSettingsPage() {
                   <p className="text-xs text-muted-foreground">
                     150ms is good for most networks. Increase for unstable connections.
                   </p>
-                </div>
-                <div className="space-y-2">
-                  <Label>Passphrase (optional)</Label>
-                  <Input
-                    type="password"
-                    value={form.srtPassphrase as string ?? ""}
-                    onChange={(e) => set("srtPassphrase", e.target.value)}
-                    disabled={isRunning}
-                    placeholder="Leave blank for no encryption"
-                    autoComplete="new-password"
-                  />
                 </div>
               </CardContent>
             </Card>
