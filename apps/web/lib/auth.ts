@@ -1,9 +1,28 @@
 import { type NextAuthOptions } from "next-auth";
 import TwitchProvider from "next-auth/providers/twitch";
 import { db } from "@/lib/db";
-import { users, sessions } from "@/lib/db/schema";
+import { users, sessions, streams } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import crypto from "crypto";
+
+async function fetchTwitchStreamKey(accessToken: string, broadcasterId: string): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `https://api.twitch.tv/helix/streams/key?broadcaster_id=${broadcasterId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Client-Id": process.env.TWITCH_CLIENT_ID!,
+        },
+      }
+    );
+    if (!res.ok) return null;
+    const json = await res.json() as { data?: { stream_key?: string }[] };
+    return json.data?.[0]?.stream_key ?? null;
+  } catch {
+    return null;
+  }
+}
 
 declare module "next-auth" {
   interface Session {
@@ -21,10 +40,13 @@ export const authOptions: NextAuthOptions = {
     TwitchProvider({
       clientId: process.env.TWITCH_CLIENT_ID!,
       clientSecret: process.env.TWITCH_CLIENT_SECRET!,
+      authorization: {
+        params: { scope: "openid user:read:email channel:read:stream_key" },
+      },
     }),
   ],
   secret: process.env.NEXTAUTH_SECRET,
-  session: { strategy: "database" },
+  session: { strategy: "jwt" },
   callbacks: {
     async signIn({ user, account, profile }) {
       if (!account || account.provider !== "twitch" || !profile) return false;
@@ -64,14 +86,29 @@ export const authOptions: NextAuthOptions = {
         });
       }
 
-      // Store user id on the next-auth user object
+      // Fetch stream key and propagate to all streams for this user
+      if (account.access_token) {
+        const streamKey = await fetchTwitchStreamKey(account.access_token, twitchId);
+        if (streamKey) {
+          await db.update(users).set({ twitchStreamKey: streamKey }).where(eq(users.id, twitchId));
+          await db.update(streams).set({ twitchStreamKey: streamKey }).where(eq(streams.userId, twitchId));
+        }
+      }
+
       user.id = twitchId;
       return true;
     },
 
-    async session({ session, token, user }) {
-      if (session.user && user?.id) {
-        session.user.id = user.id;
+    async jwt({ token, user }) {
+      if (user?.id) {
+        token.sub = user.id;
+      }
+      return token;
+    },
+
+    async session({ session, token }) {
+      if (session.user && token?.sub) {
+        session.user.id = token.sub;
       }
       return session;
     },

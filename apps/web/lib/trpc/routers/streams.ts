@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../server";
 import { db } from "@/lib/db";
-import { streams, uploads } from "@/lib/db/schema";
+import { streams, uploads, users } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { streamManager } from "@/lib/stream-manager";
 import crypto from "crypto";
@@ -59,12 +59,15 @@ export const streamsRouter = router({
       throw new Error("No SRT ports available. Too many concurrent streams.");
     }
 
+    const user = await db.select().from(users).where(eq(users.id, ctx.userId)).get();
+
     const id = crypto.randomUUID();
     await db.insert(streams).values({
       id,
       userId: ctx.userId,
       srtPort: port,
       name: "My Stream",
+      twitchStreamKey: user?.twitchStreamKey ?? null,
     });
 
     return { id };

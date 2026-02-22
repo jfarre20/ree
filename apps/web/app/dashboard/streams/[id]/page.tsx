@@ -385,13 +385,13 @@ export default function StreamSettingsPage() {
                   <div className="space-y-2">
                     <Label>Select background file</Label>
                     <Select
-                      value={(form.backgroundFileId as string) ?? ""}
-                      onValueChange={(v) => set("backgroundFileId", v || null)}
+                      value={(form.backgroundFileId as string) ?? "__none__"}
+                      onValueChange={(v) => set("backgroundFileId", v === "__none__" ? null : v)}
                       disabled={isRunning}
                     >
                       <SelectTrigger><SelectValue placeholder="Default (built-in)" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Default (built-in)</SelectItem>
+                        <SelectItem value="__none__">Default (built-in)</SelectItem>
                         {files.map((f) => (
                           <SelectItem key={f.id} value={f.id}>
                             {f.originalName} ({formatBytes(f.size)})

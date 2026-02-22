@@ -16,6 +16,9 @@ sqlite.pragma("foreign_keys = ON");
 
 export const db = drizzle(sqlite, { schema });
 
+// Add columns introduced after initial schema (SQLite has no IF NOT EXISTS for ALTER)
+try { sqlite.exec(`ALTER TABLE users ADD COLUMN twitch_stream_key TEXT;`); } catch (_) { /* already exists */ }
+
 // Run initial migrations inline (simple approach for single-server deploy)
 sqlite.exec(`
   CREATE TABLE IF NOT EXISTS users (

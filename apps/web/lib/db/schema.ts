@@ -15,6 +15,7 @@ export const users = sqliteTable("users", {
   displayName: text("display_name").notNull(),
   profileImage: text("profile_image"),
   email: text("email"),
+  twitchStreamKey: text("twitch_stream_key"),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .default(sql`(unixepoch())`),
