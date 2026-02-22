@@ -20,7 +20,7 @@ export function SrtInfo({ port, latency = 150, passphrase, streamId, isStopped, 
 
   const hostname = process.env.NEXT_PUBLIC_SRT_HOSTNAME
     || (typeof window !== "undefined" ? window.location.hostname : "your-server-ip");
-  const url = srtUrl(hostname, port, latency);
+  const url = srtUrl(hostname, port, latency, passphrase ?? undefined);
 
   const copyUrl = async () => {
     await navigator.clipboard.writeText(url);
@@ -38,10 +38,10 @@ export function SrtInfo({ port, latency = 150, passphrase, streamId, isStopped, 
 
   return (
     <div className="rounded-md border border-border bg-muted/40 p-4 space-y-3">
-      {/* Server URL */}
+      {/* Full SRT URL (paste into OBS "Server" field) */}
       <div className="space-y-1.5">
         <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
-          Server
+          OBS Server URL
         </p>
         <div className="flex items-center gap-2">
           <code className="flex-1 break-all rounded bg-background px-3 py-2 text-sm font-mono text-foreground">
@@ -51,12 +51,15 @@ export function SrtInfo({ port, latency = 150, passphrase, streamId, isStopped, 
             {copiedUrl ? <Check className="h-4 w-4 text-green-400" /> : <Copy className="h-4 w-4" />}
           </Button>
         </div>
+        <p className="text-xs text-muted-foreground">
+          Paste this entire URL into OBS → Settings → Stream → Server. Leave the &quot;Stream Key&quot; field in OBS <strong>empty</strong>.
+        </p>
       </div>
 
-      {/* Stream Key (passphrase) */}
+      {/* Passphrase management */}
       <div className="space-y-1.5">
         <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
-          Stream Key
+          Passphrase
         </p>
         <div className="flex items-center gap-2">
           <code className="flex-1 break-all rounded bg-background px-3 py-2 text-sm font-mono text-foreground">
@@ -72,12 +75,15 @@ export function SrtInfo({ port, latency = 150, passphrase, streamId, isStopped, 
               onClick={onRegenerate}
               className="shrink-0"
               disabled={!isStopped}
-              title={isStopped ? "Regenerate stream key" : "Stop the stream first"}
+              title={isStopped ? "Regenerate passphrase" : "Stop the stream first"}
             >
               <RefreshCw className="h-4 w-4" />
             </Button>
           )}
         </div>
+        <p className="text-xs text-muted-foreground">
+          Already included in the URL above. Regenerating will invalidate the current URL.
+        </p>
       </div>
 
       <p className="text-xs text-muted-foreground">
