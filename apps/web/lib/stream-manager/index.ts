@@ -8,7 +8,7 @@
 import { StreamProcess, type StreamConfig, type StreamStatus } from "./process";
 import { db } from "@/lib/db";
 import { streams } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, lt, and, ne } from "drizzle-orm";
 
 class StreamManager {
   private processes = new Map<string, StreamProcess>();
@@ -108,6 +108,47 @@ class StreamManager {
     return this.processes.has(streamId) && (this.processes.get(streamId)?.status.running ?? false);
   }
 
+  /** Delete stopped streams that haven't been used in STREAM_EXPIRY_DAYS (default 14) */
+  async cleanupExpiredStreams(): Promise<number> {
+    const expiryDays = parseInt(process.env.STREAM_EXPIRY_DAYS ?? "14", 10);
+    if (expiryDays <= 0) return 0; // disabled
+
+    const cutoff = new Date(Date.now() - expiryDays * 24 * 60 * 60 * 1000);
+
+    // Only delete stopped streams — never touch running ones
+    const expired = await db
+      .select({ id: streams.id, port: streams.srtPort })
+      .from(streams)
+      .where(
+        and(
+          lt(streams.updatedAt, cutoff),
+          ne(streams.status, "running"),
+          ne(streams.status, "starting")
+        )
+      );
+
+    for (const row of expired) {
+      await db.delete(streams).where(eq(streams.id, row.id));
+      this.releasePort(row.port);
+    }
+
+    if (expired.length > 0) {
+      console.log(`[cleanup] Deleted ${expired.length} expired stream(s) (unused for ${expiryDays}+ days)`);
+    }
+
+    return expired.length;
+  }
+
+  /** Start periodic cleanup (call once at startup) */
+  startCleanupInterval() {
+    // Run immediately on startup
+    this.cleanupExpiredStreams().catch(console.error);
+    // Then every 6 hours
+    setInterval(() => {
+      this.cleanupExpiredStreams().catch(console.error);
+    }, 6 * 60 * 60 * 1000);
+  }
+
   private async handleStatusChange(
     streamId: string,
     status: StreamStatus,
@@ -143,8 +184,14 @@ const globalForManager = globalThis as unknown as {
   streamManager: StreamManager | undefined;
 };
 
+const isNew = !globalForManager.streamManager;
 export const streamManager =
   globalForManager.streamManager ?? new StreamManager();
+
+// Start periodic cleanup only once (avoid duplicates on hot-reload)
+if (isNew) {
+  streamManager.startCleanupInterval();
+}
 
 if (process.env.NODE_ENV !== "production") {
   globalForManager.streamManager = streamManager;
