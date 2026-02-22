@@ -32,3 +32,6 @@ Thumbs.db
 
 # Background video (user-supplied, not tracked)
 background.mp4
+
+# Local docker-compose overrides
+docker-compose.override.yml
