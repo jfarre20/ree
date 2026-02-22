@@ -8,6 +8,9 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "ree — SRT Stream Compositor",
   description: "Self-hosted SRT-to-Twitch compositor with automatic background fallback.",
+  icons: {
+    icon: "/favicon.png",
+  },
 };
 
 export default function RootLayout({

@@ -1,4 +1,8 @@
- lk# ree — SRT Compositor Dashboard
+<p align="center">
+  <img src="assets/icon.png" alt="ree" width="128" />
+</p>
+
+# ree — SRT Compositor Dashboard
 
 Self-hosted web dashboard that manages `srt_compositor` processes and pushes them to Twitch RTMP.
 
