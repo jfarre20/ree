@@ -188,13 +188,13 @@ const isNew = !globalForManager.streamManager;
 export const streamManager =
   globalForManager.streamManager ?? new StreamManager();
 
+// Always cache — in production Next.js standalone can re-evaluate modules,
+// which would create duplicate StreamManagers with empty port sets.
+globalForManager.streamManager = streamManager;
+
 // Start periodic cleanup only once (avoid duplicates on hot-reload)
 if (isNew) {
   streamManager.startCleanupInterval();
-}
-
-if (process.env.NODE_ENV !== "production") {
-  globalForManager.streamManager = streamManager;
 }
 
 export type { StreamConfig, StreamStatus };
