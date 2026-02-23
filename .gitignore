@@ -25,6 +25,8 @@ compositor/srt_compositor.o
 /srt_compositor.o
 /stream.sh
 /Makefile
+
+#works dir
 works/
 
 # Uploads — user data (root uploads dir only, not app/api/uploads route)
@@ -43,3 +45,4 @@ background.mp4
 
 # Local docker-compose overrides
 docker-compose.override.yml
+
